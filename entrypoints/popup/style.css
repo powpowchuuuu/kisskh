@@ -1,16 +1,58 @@
-:root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  color-scheme: dark;
+@import 'tailwindcss';
+
+/* Bundled, not linked: the popup's CSP blocks Google Fonts. */
+@import '@fontsource-variable/source-serif-4';
+@import './ds.css';
+
+/*
+ * Broadsheet tokens registered as the Tailwind theme, so `bg-neutral-100`,
+ * `text-accent-700`, `rounded-md` and `font-heading` resolve to the design
+ * system rather than sitting alongside it.
+ */
+@theme {
+  --color-paper: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-ink: #201e1d;
+
+  --color-accent: #0088b0;
+  --color-accent-100: #e9f8ff;
+  --color-accent-600: #1186ac;
+  --color-accent-700: #006786;
+  --color-accent-800: #004961;
+
+  --color-flag: #d6006c;
+  --color-flag-100: #fff1f4;
+  --color-flag-700: #aa0b56;
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --font-heading: 'Source Serif 4 Variable', 'Source Serif 4', system-ui, serif;
+  --font-body: 'Source Serif 4 Variable', 'Source Serif 4', system-ui, serif;
+
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
-  /* Narrow on purpose: the rows are one line of text, not a grid. */
+  /* The panel fills the window here, so it carries the panel's own ground
+     rather than the page ground the canvas shows it against. */
   width: 400px;
-  margin: 0;
-  padding: 0;
-  background: var(--surface-ground);
-  color: var(--text-color);
+  background: var(--color-neutral-100);
 }
