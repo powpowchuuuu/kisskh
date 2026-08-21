@@ -939,7 +939,7 @@ function Server({
           onChange={(e) => onChange({ token: e.target.value })}
         />
         <div className="mt-[3px] text-[11px] text-neutral-700">
-          Sent as an <code>Authorization: Bearer</code> header.
+          Sent as an <code>X-Token</code> header.
         </div>
       </div>
 

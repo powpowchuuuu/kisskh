@@ -3,7 +3,7 @@
 A Chrome extension that surfaces the video and subtitle files an episode page
 loads, so they can be saved or handed to another tool.
 
-![Files tab](docs/files.png)
+<img src="docs/files.png" alt="Files tab" width="400">
 
 ## How it finds things
 
@@ -34,7 +34,7 @@ Each row can be renamed, its URL copied, or removed from the list.
 
 ### Note
 
-![Note tab](docs/note.png)
+<img src="docs/note.png" alt="Note tab" width="400">
 
 A plain-text listing of every captured URL, grouped by episode with each
 episode's subtitles beneath it, ready to paste elsewhere. The release name is
@@ -42,7 +42,7 @@ editable and remembered per drama.
 
 ### Settings
 
-![Settings tab](docs/settings.png)
+<img src="docs/settings.png" alt="Settings tab" width="400">
 
 Which subtitle languages to show. Filtering happens when the list is **read**,
 not when a track is captured, so changing the selection applies to everything
@@ -51,11 +51,11 @@ language to is always kept.
 
 ### Server
 
-![Server tab](docs/server.png)
+<img src="docs/server.png" alt="Server tab" width="400">
 
 POSTs the whole listing as JSON to a server or NAS of your choosing, stamped
 with the moment it left. An auth token is optional and travels as an
-`Authorization: Bearer` header.
+`X-Token` header.
 
 ```json
 {
