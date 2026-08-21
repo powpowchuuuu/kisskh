@@ -12,13 +12,44 @@ const MARKER = '__kisskhExtVideoHook__';
 /** Fields the player has used over time to carry the stream url. */
 const SOURCE_FIELD = /^(Video|link|dataSaver|ThirdParty)$/i;
 const MEDIA_URL = /\.(m3u8|mpd|mp4)(\?|$)/i;
+/** Fields the player has used over time to carry subtitle tracks. */
+const SUB_FIELD = /^(track|tracks|sub|subtitles|subtitle|files?)$/i;
+const SUB_URL = /\.(srt|vtt|ass|ssa|txt1?)(\?|$|\/)/i;
 
 /**
  * The payload shape keeps changing, so rather than reading fixed keys we walk
- * it and take the first thing that either sits under a known field name or
- * simply looks like a media url.
+ * it and split out every url that either sits under a known field name or
+ * simply looks like a media/subtitle url.
  */
-function extract(data: unknown): string | null {
+/** Poster art and stills, whatever object they happen to sit in. */
+const IMAGE_URL = /\.(webp|jpe?g|png|gif|avif|svg|bmp|ico)(\?|$|\/)/i;
+/** Keys that carry artwork rather than a track. */
+const ART_FIELD = /^(thumbnail|poster|image|cover|banner|backdrop|trailer|icon)$/i;
+/** A track carries its url under one of these. */
+const TRACK_URL_FIELD = /^(src|file|url|path)$/i;
+/** The episode's subtitle list, signed with the player's own kkey. */
+const SUB_LIST_PATH = /\/api\/Sub\//i;
+
+/**
+ * A kisskh subtitle track is {src, label, land, default}. Recognising the
+ * object lets us keep a url whose path carries no usable extension.
+ *
+ * `land` is the discriminator, not `label`: the DramaList payload also has a
+ * `label` key, and matching on it alone made every drama poster a subtitle.
+ */
+function looksLikeTrack(node: Record<string, unknown>): boolean {
+  return 'land' in node && 'label' in node;
+}
+
+/** A subtitle track: the url plus whatever names its language. */
+interface SubTrack {
+  url: string;
+  label?: string;
+}
+
+function scan(data: unknown): { videos: string[]; subs: SubTrack[] } {
+  const videos: string[] = [];
+  const subs: SubTrack[] = [];
   const stack: unknown[] = [data];
   const seen = new Set<unknown>();
   while (stack.length) {
@@ -29,15 +60,30 @@ function extract(data: unknown): string | null {
       stack.push(...node);
       continue;
     }
+    const fields = node as Record<string, unknown>;
+    const track = looksLikeTrack(fields);
+    // "English", or the language code when that is all the track carries.
+    const label = [fields.label, fields.land, fields.language, fields.name].find(
+      (v): v is string => typeof v === 'string' && v.trim() !== '',
+    );
     for (const [key, value] of Object.entries(node)) {
       if (typeof value === 'string' && /^https?:/i.test(value)) {
-        if (SOURCE_FIELD.test(key) || MEDIA_URL.test(value)) return value;
+        if (IMAGE_URL.test(value) || ART_FIELD.test(key)) continue;
+        if (MEDIA_URL.test(value) || SOURCE_FIELD.test(key)) videos.push(value);
+        else if (
+          SUB_URL.test(value) ||
+          SUB_FIELD.test(key) ||
+          (track && TRACK_URL_FIELD.test(key))
+        ) {
+          subs.push({ url: value, label });
+        }
       } else if (value && typeof value === 'object') {
         stack.push(value);
       }
     }
   }
-  return null;
+  const bySubUrl = new Map(subs.map((sub) => [sub.url, sub]));
+  return { videos: [...new Set(videos)], subs: [...bySubUrl.values()] };
 }
 
 export default defineContentScript({
@@ -55,35 +101,126 @@ export default defineContentScript({
     if (win[MARKER]) return;
     win[MARKER] = true;
 
-    const sent = new Set<string>();
+    const sentVideos = new Set<string>();
+    const sentSubs = new Set<string>();
+    const post = (type: 'video' | 'subtitle', url: string, label?: string) => {
+      window.postMessage({ source: 'kisskh-ext', type, url, label }, '*');
+    };
+
+    const postVideo = (url: string) => {
+      if (!url || sentVideos.has(url)) return;
+      sentVideos.add(url);
+      post('video', url);
+    };
+
+    /**
+     * Every subtitle is reported, whatever its language. This runs in the main
+     * world and so has no access to storage: which languages to keep is a
+     * stored preference, so that choice belongs to the background.
+     */
+    const postSub = (url: string, label?: string) => {
+      if (!url || sentSubs.has(url)) return;
+      sentSubs.add(url);
+      post('subtitle', url, label);
+    };
+
+    /** A url seen on its own (a manifest or subtitle file the player fetched). */
+    const reportUrl = (url: string) => {
+      if (!url) return;
+      if (MEDIA_URL.test(url)) postVideo(url);
+      else if (SUB_URL.test(url)) postSub(url);
+    };
+
+    /**
+     * The episode's subtitle list, parsed on its own rather than left to the
+     * generic walk: every entry here is known to be a track, so the language is
+     * reliable even when the url carries no hint of it.
+     */
+    const reportSubList = (data: unknown) => {
+      const tracks: unknown[] = Array.isArray(data) ? data : [];
+      const offered: string[] = [];
+
+      for (const entry of tracks) {
+        if (!entry || typeof entry !== 'object') continue;
+        const fields = entry as Record<string, unknown>;
+        const url = [fields.src, fields.file, fields.url, fields.path].find(
+          (v): v is string => typeof v === 'string' && /^https?:/i.test(v),
+        );
+        const label = [fields.label, fields.land, fields.language, fields.name].find(
+          (v): v is string => typeof v === 'string' && v.trim() !== '',
+        );
+        if (label) offered.push(label);
+        if (url) postSub(url, label);
+      }
+
+      // What the episode actually carries, so a label the settings do not
+      // cover is visible rather than silently absent.
+      console.log('[kisskh] subtitle languages offered:', offered.join(', ') || '(none)');
+    };
+
+    /** Any other JSON payload, e.g. the episode source. */
     const report = (data: unknown) => {
-      const url = extract(data);
-      if (!url || sent.has(url)) return;
-      sent.add(url);
-      window.postMessage({ source: 'kisskh-ext', type: 'video', url }, '*');
+      const { videos, subs } = scan(data);
+      for (const url of videos) postVideo(url);
+      for (const sub of subs) postSub(sub.url, sub.label);
     };
 
     const originalFetch = window.fetch;
     window.fetch = function (this: unknown, ...args: Parameters<typeof fetch>) {
+      const rawUrl = typeof args[0] === 'string' ? args[0] : (args[0] as Request | undefined)?.url ?? '';
+      if (/\/api\/sub\//i.test(rawUrl) && /kkey=/.test(rawUrl)) {
+        console.log('[kisskh] Sub request:', rawUrl);
+      }
       const promise = originalFetch.apply(this as never, args);
       promise
         .then((res) => {
           if (!res?.ok) return;
+          reportUrl(res.url);
           const type = res.headers.get('content-type') ?? '';
-          // The episode source endpoint ends in `.png` but answers JSON.
-          if (!/json/i.test(type) && !/\.png(\?|$)/i.test(res.url)) return;
-          res.clone().json().then(report).catch(() => {});
+          // The episode source endpoint ends in `.png` but answers JSON, and
+          // the subtitle list is not always labelled as json either, so try
+          // anything coming off the site's own api.
+          if (
+            !/json/i.test(type) &&
+            !/\.png(\?|$)/i.test(res.url) &&
+            !/\/api\//i.test(res.url)
+          ) {
+            return;
+          }
+          const isSubList = SUB_LIST_PATH.test(res.url) || SUB_LIST_PATH.test(rawUrl);
+          res
+            .clone()
+            .json()
+            .then((data) => (isSubList ? reportSubList(data) : report(data)))
+            .catch(() => {});
         })
         .catch(() => {});
       return promise;
     } as typeof fetch;
 
+    const open = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (
+      this: XMLHttpRequest,
+      method: string,
+      url: string | URL,
+      ...rest: unknown[]
+    ) {
+      const target = String(url);
+      if (/\/api\/sub\//i.test(target) && /kkey=/.test(target)) {
+        console.log('[kisskh] Sub request:', target);
+      }
+      return (open as (...a: unknown[]) => void).call(this, method, url, ...rest);
+    };
+
     const send = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, ...args: unknown[]) {
       this.addEventListener('load', () => {
         if (this.status !== 200) return;
+        reportUrl(this.responseURL);
         try {
-          report(JSON.parse(this.responseText));
+          const data = JSON.parse(this.responseText);
+          if (SUB_LIST_PATH.test(this.responseURL)) reportSubList(data);
+          else report(data);
         } catch {
           // Not JSON; nothing to read.
         }

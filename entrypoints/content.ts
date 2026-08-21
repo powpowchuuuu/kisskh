@@ -50,6 +50,18 @@ async function handleVideoUrl(url: string) {
   refreshBadge();
 }
 
+/** A subtitle track the page hook saw; the background owns the list. */
+async function handleSubtitleUrl(url: string, label?: string) {
+  const ep = getEpisodeId(location.href);
+  try {
+    await browser.runtime.sendMessage({ type: 'kisskh-sub', url, ep, label });
+  } catch {
+    // Background asleep or extension reloaded.
+  }
+  console.log('[kisskh] subtitle url:', url);
+  refreshBadge();
+}
+
 /**
  * Tells the background which episode the tab is on, so captures land under the
  * right one and the previous episode's urls are dropped.
@@ -66,6 +78,7 @@ async function setScope(href: string): Promise<void> {
 interface MediaEntry {
   url: string;
   ep: string | null;
+  kind?: 'video' | 'sub';
 }
 
 /** Asks the background for the media it saw this tab download, all episodes. */
@@ -102,10 +115,15 @@ async function refreshBadge() {
   // you are on, so it only shows this episode and counts the rest.
   const ep = getEpisodeId(location.href);
   const captured = await observedMedia();
-  const here = captured.filter((entry) => entry.ep === ep).map((entry) => entry.url);
+  const here = captured
+    .filter((entry) => entry.ep === ep && entry.kind !== 'sub')
+    .map((entry) => entry.url);
+  const subsHere = captured.filter(
+    (entry) => entry.ep === ep && entry.kind === 'sub',
+  ).length;
   const videos = [...new Set([hooked, ...here.reverse()].filter((u): u is string => !!u))];
 
-  const signature = `${id}|${ep}|${captured.length}|${videos.join(' ')}`;
+  const signature = `${id}|${ep}|${captured.length}|${subsHere}|${videos.join(' ')}`;
   if (signature === lastSignature) return;
   lastSignature = signature;
 
@@ -124,7 +142,8 @@ async function refreshBadge() {
       ? `Video: ${videos[0]}`
       : 'No video detected yet - start playback.',
   );
-  if (captured.length > videos.length) {
+  if (subsHere) lines.push(`${subsHere} subtitle${subsHere > 1 ? 's' : ''} captured`);
+  if (captured.length > videos.length + subsHere) {
     lines.push(`${captured.length} captured in total - see the popup`);
   }
   renderBadge(lines);
@@ -154,9 +173,33 @@ export default defineContentScript({
   main(ctx) {
     window.addEventListener('message', (event) => {
       if (event.source !== window) return;
-      const data = event.data as { source?: string; type?: string; url?: string };
-      if (data?.source !== 'kisskh-ext' || data.type !== 'video' || !data.url) return;
-      void handleVideoUrl(data.url);
+      const data = event.data as {
+        source?: string;
+        type?: string;
+        url?: string;
+        label?: string;
+      };
+      if (data?.source !== 'kisskh-ext' || !data.url) return;
+      if (data.type === 'video') void handleVideoUrl(data.url);
+      else if (data.type === 'subtitle') void handleSubtitleUrl(data.url, data.label);
+    });
+
+    // The popup runs on the extension origin; this page does not, and it
+    // already carries the session, so it fetches the drama on the popup's
+    // behalf. Errors are reported rather than swallowed.
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if ((message as { type?: string })?.type !== 'kisskh-drama') return;
+      const dramaId = getDramaId(location.href);
+      if (!dramaId) {
+        sendResponse({ error: 'no drama id in the page url' });
+        return true;
+      }
+      fetchDrama(location.origin, dramaId)
+        .then((drama) => sendResponse({ drama }))
+        .catch((err) =>
+          sendResponse({ error: err instanceof Error ? err.message : String(err) }),
+        );
+      return true;
     });
 
     void run();
