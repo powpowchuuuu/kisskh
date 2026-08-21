@@ -134,6 +134,36 @@ async function fetchFor(url: string, wantText: boolean) {
   };
 }
 
+/**
+ * POSTs the listing. Reports the transport failure and the server's own
+ * refusal differently: a wrong token is a 401 the user can act on, an
+ * unreachable NAS is not.
+ */
+async function push(url: string, token: string | undefined, payload: unknown) {
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (token?.trim()) headers.authorization = `Bearer ${token.trim()}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return {
+      ok: res.ok,
+      status: res.status,
+      // A short excerpt only: the point is to show why it was refused.
+      body: res.ok ? '' : (await res.text().catch(() => '')).slice(0, 300),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      body: err instanceof Error ? err.message : 'request failed',
+    };
+  }
+}
+
 export default defineBackground(() => {
   void prune();
 
@@ -167,6 +197,20 @@ export default defineBackground(() => {
       ep?: string | null;
       label?: string;
     };
+    // Pushes the listing to the user's own server. Runs here for the same
+    // reason every other request does: a cross-origin fetch from the popup is
+    // not reliably exempt from CORS, and this one crosses to an arbitrary host.
+    if (type === 'kisskh-push') {
+      const { url: target, token, payload } = (message ?? {}) as {
+        url?: string;
+        token?: string;
+        payload?: unknown;
+      };
+      if (!target) return;
+      void push(target, token, payload).then(sendResponse);
+      return true;
+    }
+
     // Not tied to a tab: answer before the tab id is required.
     if (type === 'kisskh-fetch') {
       if (!url) return;

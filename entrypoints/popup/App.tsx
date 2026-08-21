@@ -9,7 +9,9 @@ import {
   LANGS_KEY,
   LANGUAGES,
   META_KEY,
+  SERVER_KEY,
   type DramaMeta,
+  type ServerConfig,
   countEpisodes,
   fetchDrama,
   getDramaId,
@@ -359,8 +361,8 @@ function isSubtitle(kind: Kind): boolean {
 
 /** The second line of a row: what distinguishes this file from its siblings. */
 function metaOf(item: Item): string {
-  if (isSubtitle(item.kind)) return item.label ?? 'langue inconnue';
-  if (item.kind === 'VIDEO') return 'format en attente de résolution';
+  if (isSubtitle(item.kind)) return item.label ?? 'unknown language';
+  if (item.kind === 'VIDEO') return 'format not resolved yet';
   if (PLAYLIST.has(item.kind)) {
     return item.duration === null
       ? 'playlist'
@@ -370,7 +372,7 @@ function metaOf(item: Item): string {
 }
 
 function episodeLabel(episode: number | null): string {
-  return episode === null ? 'Épisode ?' : `Épisode ${String(episode).padStart(2, '0')}`;
+  return episode === null ? 'Episode ?' : `Episode ${String(episode).padStart(2, '0')}`;
 }
 
 const Check = () => (
@@ -438,6 +440,86 @@ function buildNote(title: string, meta: DramaMeta, items: readonly Item[]): stri
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
+/**
+ * Everything the extension knows, shaped for a receiving server: when it was
+ * sent, where it came from, the drama, then every episode with its videos and
+ * its subtitle tracks. Stamped at build time so the preview shows the same
+ * instant the request will carry.
+ */
+function buildPayload(
+  drama: KisskhDrama | null,
+  meta: DramaMeta,
+  items: readonly Item[],
+  origin: string,
+) {
+  const now = new Date();
+
+  const byEpisode = new Map<number | null, Item[]>();
+  for (const item of items) {
+    const group = byEpisode.get(item.episode) ?? [];
+    group.push(item);
+    byEpisode.set(item.episode, group);
+  }
+
+  const episodes = [...byEpisode.keys()]
+    .sort((a, b) => (a ?? Infinity) - (b ?? Infinity))
+    .map((episode) => {
+      const group = byEpisode.get(episode) ?? [];
+      return {
+        number: episode,
+        videos: group
+          .filter((item) => !isSubtitle(item.kind))
+          .map((item) => ({
+            url: item.url,
+            format: item.kind,
+            filename: item.name,
+            durationSeconds: item.duration,
+          })),
+        subtitles: group
+          .filter((item) => isSubtitle(item.kind))
+          .map((item) => ({
+            url: item.url,
+            format: item.kind,
+            language: item.label ?? null,
+            filename: item.name,
+          })),
+      };
+    });
+
+  return {
+    sentAt: now.toISOString(),
+    sentAtLocal: now.toLocaleString('en-GB', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    source: origin,
+    release: meta.name?.trim() || drama?.title || null,
+    drama: drama
+      ? {
+          title: drama.title,
+          type: drama.type,
+          status: drama.status,
+          country: drama.country,
+          episodesInCatalogue: drama.episodesCount,
+          thumbnail: drama.thumbnail ?? null,
+        }
+      : null,
+    episodes,
+    counts: {
+      episodes: episodes.length,
+      files: items.length,
+      videos: items.filter((item) => !isSubtitle(item.kind)).length,
+      subtitles: items.filter((item) => isSubtitle(item.kind)).length,
+    },
+  };
+}
+
 /* -------------------------------------------------------------------- row -- */
 
 function Row({
@@ -470,24 +552,24 @@ function Row({
   };
 
   const copyAs = async (label: string, text: string) =>
-    setFlash((await copy(text)) ? label : 'Échec de la copie');
+    setFlash((await copy(text)) ? label : 'Copy failed');
 
   const playlist = PLAYLIST.has(item.kind);
 
   const download = async () => {
     try {
       await browser.downloads.download({ url: item.url, filename: safeName(item.name) });
-      setFlash('Téléchargement lancé');
+      setFlash('Download started');
     } catch (err) {
-      setFlash(err instanceof Error ? err.message : 'Échec du téléchargement');
+      setFlash(err instanceof Error ? err.message : 'Download failed');
     }
   };
 
   const primaryLabel = playlist
-    ? 'Copier la commande'
+    ? 'Copy command'
     : item.kind === 'VIDEO'
-      ? 'Résoudre'
-      : 'Télécharger';
+      ? 'Resolve'
+      : 'Download';
 
   return (
     <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[9px] px-[14px] py-[7px] hover:bg-ink/6">
@@ -533,18 +615,18 @@ function Row({
               {primaryLabel}
             </Menu.Trigger>
             <MenuPopup>
-              <MenuItem onClick={() => void copyAs('Commande ffmpeg copiée', ffmpegCommand(item, origin))}>
-                Commande ffmpeg
+              <MenuItem onClick={() => void copyAs('ffmpeg command copied', ffmpegCommand(item, origin))}>
+                ffmpeg command
               </MenuItem>
-              <MenuItem onClick={() => void copyAs('Commande yt-dlp copiée', ytDlpCommand(item, origin))}>
-                Commande yt-dlp
+              <MenuItem onClick={() => void copyAs('yt-dlp command copied', ytDlpCommand(item, origin))}>
+                yt-dlp command
               </MenuItem>
             </MenuPopup>
           </Menu.Root>
         ) : (
           <button
             type="button"
-            onClick={() => (item.kind === 'VIDEO' ? setFlash('Résolution en cours…') : void download())}
+            onClick={() => (item.kind === 'VIDEO' ? setFlash('Resolving…') : void download())}
             className="inline-flex cursor-pointer items-center gap-[5px] rounded-md px-2 py-1 font-heading text-[11.5px] text-accent-700 hover:bg-accent/12"
           >
             {primaryLabel}
@@ -553,27 +635,27 @@ function Row({
 
         <Menu.Root>
           <Menu.Trigger
-            aria-label="Plus d'actions"
+            aria-label="More actions"
             className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md text-neutral-700 hover:bg-ink/10"
           >
             <Dots />
           </Menu.Trigger>
           <MenuPopup>
-            <MenuItem onClick={() => void copyAs('URL copiée', item.url)}>Copier l'URL</MenuItem>
+            <MenuItem onClick={() => void copyAs('URL copied', item.url)}>Copy URL</MenuItem>
             <MenuItem
               onClick={() => {
                 setDraft(item.name);
                 setRenaming(true);
               }}
             >
-              Renommer
+              Rename
             </MenuItem>
             {!playlist && (
-              <MenuItem onClick={() => void copyAs('Commande yt-dlp copiée', ytDlpCommand(item, origin))}>
-                Commande yt-dlp
+              <MenuItem onClick={() => void copyAs('yt-dlp command copied', ytDlpCommand(item, origin))}>
+                yt-dlp command
               </MenuItem>
             )}
-            <MenuItem onClick={onDismiss}>Retirer de la liste</MenuItem>
+            <MenuItem onClick={onDismiss}>Remove from list</MenuItem>
           </MenuPopup>
         </Menu.Root>
       </div>
@@ -653,7 +735,7 @@ function Files({
               {open ? <ChevronDown /> : <ChevronRight />}
               <span>{episodeLabel(episode)}</span>
               <span className="font-body text-[11.5px] tracking-normal text-neutral-700 normal-case">
-                {files.length} {files.length > 1 ? 'fichiers' : 'fichier'}
+                {files.length} {files.length > 1 ? 'files' : 'file'}
               </span>
             </Collapsible.Trigger>
 
@@ -699,7 +781,7 @@ function Note({
     <div className="flex flex-col gap-[10px] p-[14px]">
       <div>
         <label htmlFor="release" className="mb-1 block">
-          <Kicker>Nom de release</Kicker>
+          <Kicker>Release name</Kicker>
         </label>
         <input
           id="release"
@@ -713,7 +795,7 @@ function Note({
       <div>
         <div className="mb-1">
           <Kicker>
-            Listing · {items.length} URL
+            Listing · {items.length} URL{items.length > 1 ? 's' : ''}
           </Kicker>
         </div>
         <pre className="m-0 max-h-[200px] overflow-auto rounded-md bg-surface px-[10px] py-[9px] font-mono text-[10.5px] leading-[1.7] whitespace-pre text-neutral-800">
@@ -726,7 +808,7 @@ function Note({
         className="btn btn-primary btn-block"
         onClick={async () => setCopied(await copy(text))}
       >
-        {copied ? 'Bloc copié' : 'Copier le bloc'}
+        {copied ? 'Copied' : 'Copy block'}
       </button>
     </div>
   );
@@ -744,9 +826,9 @@ function Settings({
   return (
     <div className="flex flex-col gap-2 p-[14px]">
       <div>
-        <Kicker>Langues de sous-titres</Kicker>
+        <Kicker>Subtitle languages</Kicker>
         <div className="mt-[3px] text-[11.5px] text-neutral-700">
-          Les autres langues sont captées mais masquées.
+          Other languages are captured but hidden.
         </div>
       </div>
 
@@ -772,12 +854,126 @@ function Settings({
               </Checkbox.Root>
               <span>{lang.label}</span>
               <span className="ml-auto text-[11px] text-neutral-700">
-                {count > 0 && `${count} ${count > 1 ? 'fichiers' : 'fichier'}`}
+                {count > 0 && `${count} ${count > 1 ? 'files' : 'file'}`}
               </span>
             </label>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function Server({
+  config,
+  onChange,
+  makePayload,
+}: {
+  config: ServerConfig;
+  onChange: (patch: ServerConfig) => void;
+  /** Called again at send time: the payload carries the instant it left. */
+  makePayload: () => unknown;
+}) {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const preview = JSON.stringify(makePayload(), null, 2);
+
+  const send = async () => {
+    const url = config.url?.trim();
+    if (!url) {
+      setResult({ ok: false, text: 'Enter a URL first.' });
+      return;
+    }
+    setSending(true);
+    setResult(null);
+    try {
+      const reply = (await browser.runtime.sendMessage({
+        type: 'kisskh-push',
+        url,
+        token: config.token,
+        payload: makePayload(),
+      })) as { ok: boolean; status: number; body: string } | undefined;
+
+      if (reply?.ok) {
+        const at = new Date();
+        onChange({ lastSentAt: at.toISOString() });
+        setResult({ ok: true, text: `Sent on ${at.toLocaleString('en-GB')}` });
+      } else if (reply?.status) {
+        setResult({
+          ok: false,
+          text: `Refused · HTTP ${reply.status}${reply.body ? ` · ${reply.body}` : ''}`,
+        });
+      } else {
+        setResult({ ok: false, text: `Unreachable · ${reply?.body ?? 'no response'}` });
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-[10px] p-[14px]">
+      <div>
+        <label htmlFor="server-url" className="mb-1 block">
+          <Kicker>Server or NAS URL</Kicker>
+        </label>
+        <input
+          id="server-url"
+          className="input min-h-[30px] text-[12.5px]"
+          value={config.url ?? ''}
+          placeholder="https://nas.local:8080/kisskh"
+          onChange={(e) => onChange({ url: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="server-token" className="mb-1 block">
+          <Kicker>Auth token</Kicker>
+        </label>
+        <input
+          id="server-token"
+          type="password"
+          className="input min-h-[30px] text-[12.5px]"
+          value={config.token ?? ''}
+          placeholder="leave empty if the server needs none"
+          onChange={(e) => onChange({ token: e.target.value })}
+        />
+        <div className="mt-[3px] text-[11px] text-neutral-700">
+          Sent as an <code>Authorization: Bearer</code> header.
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1">
+          <Kicker>Payload · POST JSON · stamped when sent</Kicker>
+        </div>
+        <pre className="m-0 max-h-[180px] overflow-auto rounded-md bg-surface px-[10px] py-[9px] font-mono text-[10.5px] leading-[1.7] whitespace-pre text-neutral-800">
+          {preview}
+        </pre>
+      </div>
+
+      {result && (
+        <div
+          className={`text-[11.5px] ${result.ok ? 'text-accent-700' : 'text-flag-700'}`}
+        >
+          {result.text}
+        </div>
+      )}
+
+      {!result && config.lastSentAt && (
+        <div className="text-[11.5px] text-neutral-700">
+          Last sent on {new Date(config.lastSentAt).toLocaleString('en-GB')}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-primary btn-block"
+        disabled={sending}
+        onClick={() => void send()}
+      >
+        {sending ? 'Sending…' : 'Send to server'}
+      </button>
     </div>
   );
 }
@@ -788,6 +984,7 @@ function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [chosen, setChosen] = useState<string[]>([...DEFAULT_LANGS]);
   const [meta, setMeta] = useState<DramaMeta>({});
+  const [server, setServer] = useState<ServerConfig>({});
   const [view, setView] = useState('files');
   const [busy, setBusy] = useState(false);
   const durationsFor = useRef<string>('');
@@ -806,11 +1003,22 @@ function App() {
   useEffect(refresh, [refresh]);
 
   useEffect(() => {
-    void browser.storage.local.get(LANGS_KEY).then((stored) => {
+    void browser.storage.local.get([LANGS_KEY, SERVER_KEY]).then((stored) => {
       const saved = stored[LANGS_KEY];
       if (Array.isArray(saved)) setChosen(saved as string[]);
+      const target = stored[SERVER_KEY];
+      if (target && typeof target === 'object') setServer(target as ServerConfig);
     });
   }, []);
+
+  // Global, not per drama: it is the user's own server either way.
+  const saveServer = (patch: ServerConfig) => {
+    setServer((prev) => {
+      const next = { ...prev, ...patch };
+      void browser.storage.local.set({ [SERVER_KEY]: next });
+      return next;
+    });
+  };
 
   // Read the playlists once per url set, after the list is on screen.
   useEffect(() => {
@@ -945,7 +1153,7 @@ function App() {
   }
 
   const status =
-    state.status === 'loading' ? 'Détection…' : items.length ? 'Capture active' : 'En attente';
+    state.status === 'loading' ? 'Detecting…' : items.length ? 'Capture active' : 'Waiting';
 
   return (
     <div>
@@ -972,7 +1180,7 @@ function App() {
           </div>
         ) : state.status === 'idle' ? (
           <div className="pb-[14px]">
-            <h3 className="mt-4 mb-1 text-[18px]">Rien à capter ici</h3>
+            <h3 className="mt-4 mb-1 text-[18px]">Nothing to capture here</h3>
             <p className="mb-[14px] max-w-[300px] text-[12.5px] text-neutral-700">
               {state.message}
             </p>
@@ -981,7 +1189,7 @@ function App() {
               className="btn btn-primary"
               onClick={() => void browser.tabs.create({ url: 'https://kisskh.co' })}
             >
-              Ouvrir kisskh.co
+              Open kisskh.co
             </button>
           </div>
         ) : (
@@ -989,20 +1197,20 @@ function App() {
             {ready?.dramaError && (
               <div className="mt-[14px]">
                 <div className="text-[12.5px] font-semibold text-flag-700">
-                  Titre introuvable sur la page
+                  Title not found on the page
                 </div>
                 <div className="mt-[2px] text-[12px] text-neutral-700">
-                  Les fichiers gardent leur nom brut. Donne un nom de release dans
-                  l'onglet Note pour les renommer.
+                  Files keep their raw names. Set a release name in the Note tab
+                  to rename them.
                 </div>
               </div>
             )}
 
             <h2 className="mt-[11px] mb-[2px] text-[21px]">{title}</h2>
             <div className="text-[11.5px] text-neutral-700">
-              {episodeCount > 0 && `${episodeCount} ${episodeCount > 1 ? 'épisodes' : 'épisode'} · `}
-              {items.length} {items.length > 1 ? 'fichiers captés' : 'fichier capté'}
-              {counts ? ` · ${counts.total} au catalogue` : ''}
+              {episodeCount > 0 && `${episodeCount} ${episodeCount > 1 ? 'episodes' : 'episode'} · `}
+              {items.length} {items.length > 1 ? 'files captured' : 'file captured'}
+              {counts ? ` · ${counts.total} in the catalogue` : ''}
             </div>
           </>
         )}
@@ -1012,9 +1220,10 @@ function App() {
         <Tabs.Root value={view} onValueChange={(next) => setView(String(next))}>
           <Tabs.List className="mt-3 flex gap-[18px] px-[14px]">
             {[
-              ['files', 'Fichiers'],
+              ['files', 'Files'],
               ['note', 'Note'],
-              ['settings', 'Réglages'],
+              ['settings', 'Settings'],
+              ['server', 'Server'],
             ].map(([id, label]) => (
               <Tabs.Tab
                 key={id}
@@ -1043,11 +1252,11 @@ function App() {
             ) : (
               <div className="p-[14px]">
                 <p className="mb-[14px] max-w-[320px] text-[12.5px] text-neutral-700">
-                  Aucun fichier n'est encore passé. Lance la lecture quelques secondes :
-                  la vidéo et les sous-titres apparaîtront ici.
+                  Nothing has come through yet. Start playback for a few seconds and
+                  the video and subtitles will appear here.
                 </p>
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={refresh}>
-                  {busy ? 'Détection…' : 'Relancer la détection'}
+                  {busy ? 'Detecting…' : 'Run detection again'}
                 </button>
               </div>
             )}
@@ -1059,6 +1268,16 @@ function App() {
               meta={meta}
               items={items}
               onChange={(patch) => void saveMeta(patch)}
+            />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="server">
+            <Server
+              config={server}
+              onChange={saveServer}
+              makePayload={() =>
+                buildPayload(ready.drama, meta, items, ready.origin)
+              }
             />
           </Tabs.Panel>
 
