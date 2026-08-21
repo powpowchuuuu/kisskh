@@ -139,3 +139,11 @@ export function matchesLanguages(
   const named = LANGUAGES.some((lang) => lang.name.test(url));
   return named ? wanted.some((lang) => lang.name.test(url)) : true;
 }
+
+/** Per-drama details the kisskh api does not carry, keyed by drama id. */
+export const META_KEY = 'kisskh-meta';
+
+export interface DramaMeta {
+  /** Overrides the api title when it differs from the release name. */
+  name?: string;
+}
