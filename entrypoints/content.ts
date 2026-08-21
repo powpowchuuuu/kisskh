@@ -1,8 +1,9 @@
 import { browser } from 'wxt/browser';
-import { countEpisodes, fetchDrama, getDramaId, getEpisodeId } from '@/utils/kisskh';
+import { countEpisodes, fetchDrama } from '@/features/kisskh/api';
+import { getDramaId, getEpisodeId } from '@/features/kisskh/url';
+import { VIDEO_KEY } from '@/features/kisskh/storage';
 
 const BADGE_ID = 'kisskh-ext-badge';
-const VIDEO_KEY = 'kisskh-video';
 
 interface StoredVideo {
   url: string;
