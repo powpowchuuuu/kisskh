@@ -141,7 +141,7 @@ async function fetchFor(url: string, wantText: boolean) {
  */
 async function push(url: string, token: string | undefined, payload: unknown) {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (token?.trim()) headers.authorization = `Bearer ${token.trim()}`;
+  if (token?.trim()) headers['x-token'] = token.trim();
 
   try {
     const res = await fetch(url, {

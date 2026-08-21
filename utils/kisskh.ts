@@ -154,7 +154,7 @@ export const SERVER_KEY = 'kisskh-server';
 export interface ServerConfig {
   /** Endpoint the payload is POSTed to. */
   url?: string;
-  /** Sent as `Authorization: Bearer <token>`. Empty when the server is open. */
+  /** Sent as an `X-Token` header. Empty when the server is open. */
   token?: string;
   /** ISO timestamp of the last successful push, for the pane to report. */
   lastSentAt?: string;
