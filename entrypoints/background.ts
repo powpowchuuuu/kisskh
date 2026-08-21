@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { DEFAULT_LANGS, LANGS_KEY, matchesLanguages } from '@/utils/kisskh';
+import { DEFAULT_LANGS, LANGS_KEY, matchesLanguages } from '@/features/kisskh/languages';
 
 /**
  * Watches what the browser actually downloads instead of guessing the site's
