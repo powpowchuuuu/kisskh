@@ -43,6 +43,60 @@
   line-height: 1.5;
 }
 
+.help.error {
+  background: rgba(242, 139, 130, 0.1);
+  color: #f3b8b2;
+}
+
+/* ---------- settings ---------- */
+
+.settings {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1f2124;
+}
+
+.settings h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9aa0a6;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.langs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 6px 14px;
+  grid-template-columns: 1fr 1fr;
+  list-style: none;
+}
+
+.langs label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.langs input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #1a9cf0;
+  cursor: pointer;
+}
+
+.settings-note {
+  margin: 10px 0 0;
+  color: #8b9198;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 /* ---------- list ---------- */
 
 .cards {
@@ -111,6 +165,38 @@
   background: linear-gradient(135deg, #2f3237, #1a1c1f);
 }
 
+/* Subtitle cards have no frame to show; the language is the useful thing. */
+.thumb-sub {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #3a2f1c, #1f1b14);
+  text-align: center;
+}
+
+.thumb-cc {
+  padding: 1px 6px;
+  border: 1.5px solid #f6b352;
+  border-radius: 4px;
+  color: #ffcf8f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.thumb-lang {
+  max-width: 92%;
+  overflow: hidden;
+  color: #e8dcc6;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .thumb-time {
   position: absolute;
   right: 5px;
@@ -157,6 +243,19 @@
 .badge-mp4 {
   border-color: #5bb974;
   color: #81c995;
+}
+
+/* Unknown container: not claimed as a playlist, not claimed as mp4. */
+.badge-video {
+  border-color: #9aa0a6;
+  color: #c7cdd4;
+}
+
+.badge-srt,
+.badge-vtt,
+.badge-sub {
+  border-color: #f6b352;
+  color: #ffcf8f;
 }
 
 .name {
