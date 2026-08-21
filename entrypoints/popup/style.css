@@ -4,8 +4,8 @@
   font-weight: 400;
 
   color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: #e8eaed;
+  background-color: #1b1c1e;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -14,7 +14,8 @@
 }
 
 body {
-  width: 300px;
+  /* The cards need room for a 16:9 thumbnail plus the action column. */
+  width: 440px;
   margin: 0;
-  padding: 16px;
+  padding: 0;
 }
