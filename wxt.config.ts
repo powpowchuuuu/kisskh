@@ -15,9 +15,12 @@ export default defineConfig({
   outDir: 'dist',
   manifest: {
     name: 'KissKH Helper',
-    description: 'Shows the episode count of the KissKH drama you are viewing.',
-    // Lets the popup call the DramaList API for the active tab's domain.
-    host_permissions: KISSKH_HOSTS,
+    description: 'Shows the episode count of the KissKH drama you are viewing and grabs the video URL.',
+    // KISSKH_HOSTS lets the popup call the DramaList API for the active tab's
+    // domain; webRequest can only observe what host_permissions covers, and the
+    // stream itself is served by a third-party CDN we cannot name in advance.
+    host_permissions: [...KISSKH_HOSTS, '<all_urls>'],
+    permissions: ['storage', 'webRequest', 'downloads'],
     action: { default_title: 'KissKH Helper' },
   },
 });
