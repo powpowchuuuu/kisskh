@@ -147,3 +147,15 @@ export interface DramaMeta {
   /** Overrides the api title when it differs from the release name. */
   name?: string;
 }
+
+/** Where the listing gets pushed, and the credential it may need. */
+export const SERVER_KEY = 'kisskh-server';
+
+export interface ServerConfig {
+  /** Endpoint the payload is POSTed to. */
+  url?: string;
+  /** Sent as `Authorization: Bearer <token>`. Empty when the server is open. */
+  token?: string;
+  /** ISO timestamp of the last successful push, for the pane to report. */
+  lastSentAt?: string;
+}
