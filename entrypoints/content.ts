@@ -1,34 +1,6 @@
-interface KisskhEpisode {
-  id: number;
-  number: number;
-  sub: number;
-}
-
-interface KisskhDrama {
-  id: number;
-  title: string;
-  type: string;
-  status: string;
-  episodesCount: number;
-  episodes: KisskhEpisode[];
-}
+import { countEpisodes, fetchDrama, getDramaId } from '@/utils/kisskh';
 
 const BADGE_ID = 'kisskh-ext-badge';
-
-/** Reads the drama id from the current URL (?id=549). */
-function getDramaId(): string | null {
-  const id = new URLSearchParams(location.search).get('id');
-  return id && /^\d+$/.test(id) ? id : null;
-}
-
-async function fetchDrama(id: string): Promise<KisskhDrama> {
-  const res = await fetch(`/api/DramaList/Drama/${id}?isq=false`, {
-    credentials: 'include',
-    headers: { accept: 'application/json' },
-  });
-  if (!res.ok) throw new Error(`API responded ${res.status}`);
-  return res.json();
-}
 
 function renderBadge(text: string) {
   let badge = document.getElementById(BADGE_ID);
@@ -58,17 +30,15 @@ function removeBadge() {
 }
 
 async function run() {
-  const id = getDramaId();
+  const id = getDramaId(location.href);
   if (!id) {
     removeBadge();
     return;
   }
 
   try {
-    const drama = await fetchDrama(id);
-    // episodesCount is the announced total; episodes[] is what is actually listed.
-    const listed = drama.episodes?.length ?? 0;
-    const total = drama.episodesCount ?? listed;
+    const drama = await fetchDrama(location.origin, id);
+    const { total, listed } = countEpisodes(drama);
 
     console.log('[kisskh]', {
       id: drama.id,
@@ -78,7 +48,7 @@ async function run() {
     });
 
     const suffix = listed && listed !== total ? ` (${listed} listed)` : '';
-    renderBadge(`${drama.title} — ${total} episodes${suffix}`);
+    renderBadge(`${drama.title} - ${total} episodes${suffix}`);
   } catch (err) {
     console.error('[kisskh] failed to fetch drama', id, err);
     renderBadge('kisskh: failed to load episode count');
