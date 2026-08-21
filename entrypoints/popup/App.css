@@ -1,409 +1,377 @@
+/*
+ * Layout only. Colour, typography and controls come from the PrimeReact
+ * theme; everything here is structure, spacing and the format tile.
+ *
+ * The popup sizes itself to its content -- no fixed height anywhere, or a
+ * three-item list leaves a screen of dead space under the footer.
+ */
+
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 220px;
-  max-height: 580px;
 }
 
 /* ---------- header ---------- */
 
-.head {
+.top {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+  gap: 10px;
+  padding: 12px 8px 12px 14px;
 }
 
-.head h1 {
+.top-text {
   flex: 1;
   min-width: 0;
+}
+
+.top-text h1 {
   margin: 0;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.head-sub {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: #9aa0a6;
-}
-
-.help {
-  margin: 0;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(26, 156, 240, 0.08);
-  color: #b8c4d0;
+.top-text p {
+  margin: 2px 0 0;
+  color: var(--text-color-secondary);
   font-size: 11.5px;
-  line-height: 1.5;
+  line-height: 1.3;
 }
 
-.help.error {
-  background: rgba(242, 139, 130, 0.1);
-  color: #f3b8b2;
+/* ---------- segmented nav ---------- */
+
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--surface-border);
 }
 
-/* ---------- settings ---------- */
-
-.settings {
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: #1f2124;
+.seg button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 9px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--text-color-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.settings h2 {
-  margin: 0 0 10px;
+.seg button:hover {
+  color: var(--text-color);
+}
+
+.seg button.on {
+  border-bottom-color: var(--primary-color);
+  color: var(--text-color);
+}
+
+.pill {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--text-color-secondary);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg button.on .pill {
+  background: var(--primary-color);
+  color: var(--primary-color-text);
+}
+
+/* ---------- panes ---------- */
+
+.pane {
+  max-height: 420px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.pane-title {
+  margin: 4px 0 12px 6px;
+  color: var(--text-color-secondary);
   font-size: 11px;
   font-weight: 600;
-  color: #9aa0a6;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.langs {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  gap: 6px 14px;
-  grid-template-columns: 1fr 1fr;
-  list-style: none;
-}
+/* ---------- rows ---------- */
 
-.langs label {
+.rows {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.langs input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: #1a9cf0;
-  cursor: pointer;
-}
-
-.settings-note {
-  margin: 10px 0 0;
-  color: #8b9198;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-/* ---------- list ---------- */
-
-.cards {
-  flex: 1;
-  margin: 0;
-  padding: 10px;
-  list-style: none;
-  overflow-y: auto;
-}
-
-.card {
-  position: relative;
-  display: grid;
-  grid-template-columns: 132px 1fr;
-  gap: 12px;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  background: #26282b;
-}
-
-.card + .card {
-  margin-top: 10px;
-}
-
-.card-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #9aa0a6;
-  cursor: pointer;
-}
-
-.card-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e8eaed;
-}
-
-/* ---------- thumbnail ---------- */
-
-.thumb {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: 6px;
-  background: #131415;
-}
-
-.thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumb-blank {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #2f3237, #1a1c1f);
-}
-
-/* Subtitle cards have no frame to show; the language is the useful thing. */
-.thumb-sub {
-  display: flex;
-  width: 100%;
-  height: 100%;
   flex-direction: column;
+  margin: 0;
+  padding: 0;
+  gap: 2px;
+  list-style: none;
+}
+
+.row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: linear-gradient(135deg, #3a2f1c, #1f1b14);
-  text-align: center;
+  gap: 10px;
+  padding: 7px 4px 7px 8px;
+  border-radius: 8px;
 }
 
-.thumb-cc {
-  padding: 1px 6px;
-  border: 1.5px solid #f6b352;
-  border-radius: 4px;
-  color: #ffcf8f;
-  font-size: 11px;
+.row:hover {
+  background: var(--surface-hover);
+}
+
+/* One glance tells video from subtitle. */
+.tile {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  place-items: center;
+  background: var(--surface-hover);
+  color: var(--text-color-secondary);
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
-.thumb-lang {
-  max-width: 92%;
+.tile-mp4 {
+  background: rgba(52, 211, 153, 0.16);
+  color: #6ee7b7;
+}
+
+.tile-m3u8,
+.tile-mpd {
+  background: rgba(96, 165, 250, 0.16);
+  color: #93c5fd;
+}
+
+.tile-srt,
+.tile-vtt,
+.tile-sub {
+  background: rgba(251, 191, 36, 0.16);
+  color: #fcd34d;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.row-title {
   overflow: hidden;
-  color: #e8dcc6;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.thumb-time {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.78);
-  color: #fff;
+.row-time {
+  flex-shrink: 0;
+  color: var(--text-color-secondary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- body ---------- */
-
-.card-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-  /* Clears the close button. */
-  padding-right: 22px;
-}
-
-.card-title {
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.badge {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 4px;
-  border: 1px solid #1a9cf0;
-  border-radius: 4px;
-  color: #6fc4f7;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  vertical-align: 1px;
-}
-
-.badge-mp4 {
-  border-color: #5bb974;
-  color: #81c995;
-}
-
-/* Unknown container: not claimed as a playlist, not claimed as mp4. */
-.badge-video {
-  border-color: #9aa0a6;
-  color: #c7cdd4;
-}
-
-.badge-srt,
-.badge-vtt,
-.badge-sub {
-  border-color: #f6b352;
-  color: #ffcf8f;
-}
-
-.name {
-  word-break: break-word;
-}
-
-.rename {
-  width: 100%;
-  padding: 3px 6px;
-  border: 1px solid #1a9cf0;
-  border-radius: 5px;
-  background: #1b1c1e;
-  color: #e8eaed;
-  font: inherit;
-  font-size: 12px;
-}
-
-/* ---------- actions ---------- */
-
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ghost {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 7px;
-  background: transparent;
-  color: #c7cdd4;
-  cursor: pointer;
-}
-
-.ghost:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: #fff;
-}
-
-.ghost.on {
-  border-color: #1a9cf0;
-  color: #6fc4f7;
-}
-
-.toast {
-  flex: 1;
-  min-width: 0;
+.row-file {
   overflow: hidden;
-  color: #81c995;
-  font-size: 10.5px;
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.split {
-  display: flex;
-  margin-left: auto;
+/* Replaces the file line for a moment instead of covering the popup. */
+.row-flash {
+  color: var(--primary-color);
 }
 
-.primary {
+.row-rename {
+  width: 100%;
+  font-size: 12px;
+}
+
+.row-acts {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* Compact enough that two fit where one PrimeReact default would. */
+.act.p-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.act.p-button .p-button-icon {
+  font-size: 13px;
+}
+
+.act-save.p-button {
+  color: var(--primary-color);
+}
+
+/* ---------- note ---------- */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 6px 0;
+}
+
+.field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field > span {
+  color: var(--text-color-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field .p-inputtext {
+  width: 100%;
+  font-size: 12px;
+}
+
+.note-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  background: #1a9cf0;
-  color: #06212f;
-  font-size: 12.5px;
+  justify-content: space-between;
+  margin: 16px 6px 6px;
+}
+
+.note-head span {
+  color: var(--text-color-secondary);
+  font-size: 10.5px;
   font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.primary:first-child {
-  border-radius: 15px 0 0 15px;
-}
-
-.primary:hover {
-  background: #3aaef5;
-}
-
-.primary.chevron {
-  padding: 0 8px;
-  border-left: 1px solid rgba(6, 33, 47, 0.28);
-  border-radius: 0 15px 15px 0;
-}
-
-/* ---------- inline menu ---------- */
-
-.menu {
-  margin: 8px 0 0;
-  padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+/*
+ * The listing is the deliverable, so it reads as a block of text. No height
+ * cap of its own: the pane already scrolls, and nesting a second scroll region
+ * clipped the last line mid-glyph.
+ */
+.note {
+  margin: 0 6px 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
   border-radius: 8px;
-  background: #1f2124;
-  list-style: none;
+  background: var(--surface-ground);
+  color: var(--text-color);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.menu button {
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: #d6dbe1;
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
+/* ---------- settings ---------- */
+
+.langs {
+  display: grid;
+  gap: 12px 10px;
+  grid-template-columns: 1fr 1fr;
+  padding: 0 6px;
+}
+
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 
-.menu button:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: #fff;
+.hint {
+  margin: 18px 6px 4px;
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 /* ---------- footer ---------- */
 
-.bar {
+.bottom {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: #1f2124;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-color-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
 }
 
-.bar-spacer {
-  flex: 1;
+.link:hover {
+  background: var(--surface-hover);
+  color: var(--text-color);
 }
 
-/* ---------- empty / status ---------- */
+.link.danger:hover {
+  color: #fca5a5;
+}
 
-.msg {
-  flex: 1;
+.link .pi {
+  font-size: 12px;
+}
+
+/* ---------- empty / notice ---------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 0;
   padding: 40px 20px;
-  color: #9aa0a6;
+  color: var(--text-color-secondary);
   font-size: 12.5px;
-  line-height: 1.6;
   text-align: center;
 }
 
-.msg strong {
-  color: #e8eaed;
+.empty strong {
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.notice.p-message {
+  width: 100%;
+  margin: 0 0 8px;
 }
