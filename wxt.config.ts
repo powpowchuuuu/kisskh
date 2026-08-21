@@ -10,6 +10,9 @@ const KISSKH_HOSTS = [
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  // Not the default ".output": Finder hides dot-directories, which makes the
+  // build impossible to pick in Chrome's "Load unpacked" dialog.
+  outDir: 'dist',
   manifest: {
     name: 'KissKH Helper',
     description: 'Shows the episode count of the KissKH drama you are viewing.',
