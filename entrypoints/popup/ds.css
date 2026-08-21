@@ -5,7 +5,7 @@
  * resolve to the system instead of sitting alongside it.
  *
  * Trimmed to what a 400px popup uses: the print treatments and the
- * nav/table/dialog components stay in the source system.
+ * nav/table components stay in the source system.
  */
 
 /*
@@ -19,6 +19,7 @@
   --color-bg: var(--color-paper);
   --color-accent-2: var(--color-flag);
   --color-accent-2-100: var(--color-flag-100);
+  --color-accent-2-700: var(--color-flag-700);
   --color-accent-2-800: #790e3d;
   --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
 
@@ -150,6 +151,33 @@ p {
   margin-top: var(--space-2);
 }
 
+/*
+ * The system ships primary/secondary/ghost but nothing destructive, and a
+ * delete needs to read as one. Built on the second accent rather than a new
+ * hue: quiet for the trigger, filled for the confirmation that commits.
+ */
+.btn-danger-quiet {
+  border-color: color-mix(in srgb, var(--color-accent-2) 35%, transparent);
+  color: var(--color-accent-2-700);
+}
+
+.btn-danger-quiet:hover {
+  background: color-mix(in srgb, var(--color-accent-2) 10%, transparent);
+}
+
+.btn-danger-quiet:active {
+  background: color-mix(in srgb, var(--color-accent-2) 18%, transparent);
+}
+
+.btn-danger {
+  background: var(--color-accent-2-700);
+  color: var(--color-bg);
+}
+
+.btn-danger:hover {
+  background: var(--color-accent-2);
+}
+
 /* — forms — */
 
 .input {
@@ -217,6 +245,55 @@ p {
 
 .elev-lg {
   box-shadow: var(--shadow-lg);
+}
+
+/* — dialog — */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  place-items: center;
+}
+
+/*
+ * The canvas centred this with the backdrop's grid, but the portal renders
+ * backdrop and popup as siblings, so the dialog places itself -- and clamps to
+ * the 400px panel rather than the 440px a page would allow.
+ */
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: min(440px, calc(100% - var(--space-4) * 2));
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -50%);
+}
+
+.dialog-title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: var(--font-heading-weight);
+}
+
+.dialog-body {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.dialog-actions {
+  display: flex;
+  margin-top: var(--space-2);
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 /* The action confirmation that replaces a toast, from the canvas. */
