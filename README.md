@@ -3,8 +3,6 @@
 A Chrome extension that surfaces the video and subtitle files an episode page
 loads, so they can be saved or handed to another tool.
 
-<img src="docs/files.png" alt="Files tab" width="400">
-
 ## How it finds things
 
 Nothing is guessed from the page's markup. Two independent paths observe what
@@ -34,15 +32,11 @@ Each row can be renamed, its URL copied, or removed from the list.
 
 ### Note
 
-<img src="docs/note.png" alt="Note tab" width="400">
-
 A plain-text listing of every captured URL, grouped by episode with each
 episode's subtitles beneath it, ready to paste elsewhere. The release name is
 editable and remembered per drama.
 
 ### Settings
-
-<img src="docs/settings.png" alt="Settings tab" width="400">
 
 Which subtitle languages to show. Filtering happens when the list is **read**,
 not when a track is captured, so changing the selection applies to everything
@@ -50,8 +44,6 @@ already seen instead of only to what comes next. A track the page gives no
 language to is always kept.
 
 ### Server
-
-<img src="docs/server.png" alt="Server tab" width="400">
 
 POSTs the whole listing as JSON to a server or NAS of your choosing, stamped
 with the moment it left. An auth token is optional and travels as an
@@ -106,3 +98,10 @@ npx tsc --noEmit   # `wxt build` does not typecheck; run this too
 
 Built with [WXT](https://wxt.dev), React and Tailwind. The interface follows the
 project's own design system, vendored under `entrypoints/popup/ds.css`.
+
+## Screenshots
+
+<img src="docs/files.png" alt="Files tab" width="380">
+<img src="docs/note.png" alt="Note tab" width="380">
+<img src="docs/settings.png" alt="Settings tab" width="380">
+<img src="docs/server.png" alt="Server tab" width="380">
