@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { Button } from 'primereact/button';
-import { Checkbox } from 'primereact/checkbox';
-import { InputText } from 'primereact/inputtext';
-import { Menu } from 'primereact/menu';
-import { Message } from 'primereact/message';
+import { Checkbox } from '@base-ui-components/react/checkbox';
+import { Collapsible } from '@base-ui-components/react/collapsible';
+import { Menu } from '@base-ui-components/react/menu';
+import { Tabs } from '@base-ui-components/react/tabs';
 import {
   DEFAULT_LANGS,
   LANGS_KEY,
@@ -18,7 +17,6 @@ import {
   isKisskhUrl,
   type KisskhDrama,
 } from '@/utils/kisskh';
-import './App.css';
 
 const VIDEO_KEY = 'kisskh-video';
 const NAMES_KEY = 'kisskh-names';
@@ -351,44 +349,69 @@ async function load(): Promise<State> {
   return { status: 'ready', drama, dramaError, tabId: tab?.id, origin, items };
 }
 
-/** Short, fixed-width label for the format tile. */
-const KIND_TILE: Record<Kind, string> = {
-  M3U8: 'HLS',
-  MPD: 'DASH',
-  MP4: 'MP4',
-  VIDEO: 'VID',
-  SRT: 'SRT',
-  VTT: 'VTT',
-  SUB: 'SUB',
-};
+/* ------------------------------------------------------------------ parts -- */
+
+const PLAYLIST = new Set<Kind>(['M3U8', 'MPD']);
 
 function isSubtitle(kind: Kind): boolean {
   return kind === 'SRT' || kind === 'VTT' || kind === 'SUB';
 }
 
-/**
- * The saved file keeps its full name, but the row already states the drama in
- * the header and the episode on its own first line, so only what is left of
- * the name carries any information here.
- */
-function tail(item: Item, drama: string): string {
-  const prefix = `${drama}${item.episode === null ? '' : ` Episode ${item.episode}`}`;
-  const rest = drama && item.name.startsWith(prefix)
-    ? item.name.slice(prefix.length).trim()
-    : item.name;
-  return rest || item.name;
+/** The second line of a row: what distinguishes this file from its siblings. */
+function metaOf(item: Item): string {
+  if (isSubtitle(item.kind)) return item.label ?? 'langue inconnue';
+  if (item.kind === 'VIDEO') return 'format en attente de résolution';
+  if (PLAYLIST.has(item.kind)) {
+    return item.duration === null
+      ? 'playlist'
+      : `playlist · ${formatDuration(item.duration)}`;
+  }
+  return item.duration === null ? item.kind : `${item.kind} · ${formatDuration(item.duration)}`;
+}
+
+function episodeLabel(episode: number | null): string {
+  return episode === null ? 'Épisode ?' : `Épisode ${String(episode).padStart(2, '0')}`;
+}
+
+const Check = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M3 8.5 L6.5 12 L13 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const ChevronDown = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M3 5.5 L8 11 L13 5.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M5.5 3 L11 8 L5.5 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const Dots = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="3" cy="8" r="1.4" fill="currentColor" />
+    <circle cx="8" cy="8" r="1.4" fill="currentColor" />
+    <circle cx="13" cy="8" r="1.4" fill="currentColor" />
+  </svg>
+);
+
+/** Small uppercase label, the system's recurring section marker. */
+function Kicker({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] tracking-[0.1em] text-neutral-700 uppercase">{children}</div>
+  );
 }
 
 /**
- * A plain-text listing meant to be pasted elsewhere: the release details on
- * top, then each episode followed by the subtitles that belong to it, every
- * line carrying the url it points at.
+ * A plain-text listing meant to be pasted elsewhere: the release name on top,
+ * then each episode followed by the subtitles that belong to it, every line
+ * carrying the url it points at.
  */
-function buildNote(
-  title: string,
-  meta: DramaMeta,
-  items: readonly Item[],
-): string {
+function buildNote(title: string, meta: DramaMeta, items: readonly Item[]): string {
   const lines = [`NAME : ${meta.name?.trim() || title}`, ''];
 
   const byEpisode = new Map<number | null, Item[]>();
@@ -398,13 +421,11 @@ function buildNote(
     byEpisode.set(item.episode, group);
   }
 
-  const episodes = [...byEpisode.keys()].sort(
-    (a, b) => (a ?? Infinity) - (b ?? Infinity),
-  );
+  const episodes = [...byEpisode.keys()].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
 
   for (const episode of episodes) {
     const group = byEpisode.get(episode) ?? [];
-    const name = episode === null ? 'Episode ?' : `Episode ${episode}`;
+    const name = episodeLabel(episode);
     for (const video of group.filter((item) => !isSubtitle(item.kind))) {
       lines.push(`${name} : ${video.url}`);
     }
@@ -415,6 +436,243 @@ function buildNote(
   }
 
   return `${lines.join('\n').trimEnd()}\n`;
+}
+
+/* -------------------------------------------------------------------- row -- */
+
+function Row({
+  item,
+  origin,
+  onRename,
+  onDismiss,
+}: {
+  item: Item;
+  origin: string;
+  onRename: (name: string) => void;
+  onDismiss: () => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(item.name);
+  /** Confirms an action under the row rather than over the popup. */
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!flash) return;
+    const id = setTimeout(() => setFlash(null), 2200);
+    return () => clearTimeout(id);
+  }, [flash]);
+
+  const commit = () => {
+    setRenaming(false);
+    const next = draft.trim();
+    if (next && next !== item.name) onRename(next);
+    else setDraft(item.name);
+  };
+
+  const copyAs = async (label: string, text: string) =>
+    setFlash((await copy(text)) ? label : 'Échec de la copie');
+
+  const playlist = PLAYLIST.has(item.kind);
+
+  const download = async () => {
+    try {
+      await browser.downloads.download({ url: item.url, filename: safeName(item.name) });
+      setFlash('Téléchargement lancé');
+    } catch (err) {
+      setFlash(err instanceof Error ? err.message : 'Échec du téléchargement');
+    }
+  };
+
+  const primaryLabel = playlist
+    ? 'Copier la commande'
+    : item.kind === 'VIDEO'
+      ? 'Résoudre'
+      : 'Télécharger';
+
+  return (
+    <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[9px] px-[14px] py-[7px] hover:bg-ink/6">
+      <div className="min-w-0">
+        {renaming ? (
+          <input
+            className="input min-h-[26px] px-[6px] py-[2px] text-[12.5px]"
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+              if (e.key === 'Escape') {
+                setDraft(item.name);
+                setRenaming(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="truncate text-[12.5px] leading-[1.35]" title={item.url}>
+            {item.name}
+          </div>
+        )}
+
+        <div className="mt-px flex items-center gap-[7px] text-[11px] text-neutral-700">
+          <span className="truncate">{metaOf(item)}</span>
+        </div>
+
+        {flash && (
+          <div className="mt-[2px] inline-flex animate-[fbIn_140ms_ease-out] items-center gap-[5px] text-[11px] text-accent-700">
+            <Check />
+            {flash}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-[2px]">
+        {/* A playlist has no single sane action, so its primary opens the menu. */}
+        {playlist ? (
+          <Menu.Root>
+            <Menu.Trigger className="inline-flex cursor-pointer items-center gap-[5px] rounded-md px-2 py-1 font-heading text-[11.5px] text-accent-700 hover:bg-accent/12">
+              {primaryLabel}
+            </Menu.Trigger>
+            <MenuPopup>
+              <MenuItem onClick={() => void copyAs('Commande ffmpeg copiée', ffmpegCommand(item, origin))}>
+                Commande ffmpeg
+              </MenuItem>
+              <MenuItem onClick={() => void copyAs('Commande yt-dlp copiée', ytDlpCommand(item, origin))}>
+                Commande yt-dlp
+              </MenuItem>
+            </MenuPopup>
+          </Menu.Root>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (item.kind === 'VIDEO' ? setFlash('Résolution en cours…') : void download())}
+            className="inline-flex cursor-pointer items-center gap-[5px] rounded-md px-2 py-1 font-heading text-[11.5px] text-accent-700 hover:bg-accent/12"
+          >
+            {primaryLabel}
+          </button>
+        )}
+
+        <Menu.Root>
+          <Menu.Trigger
+            aria-label="Plus d'actions"
+            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md text-neutral-700 hover:bg-ink/10"
+          >
+            <Dots />
+          </Menu.Trigger>
+          <MenuPopup>
+            <MenuItem onClick={() => void copyAs('URL copiée', item.url)}>Copier l'URL</MenuItem>
+            <MenuItem
+              onClick={() => {
+                setDraft(item.name);
+                setRenaming(true);
+              }}
+            >
+              Renommer
+            </MenuItem>
+            {!playlist && (
+              <MenuItem onClick={() => void copyAs('Commande yt-dlp copiée', ytDlpCommand(item, origin))}>
+                Commande yt-dlp
+              </MenuItem>
+            )}
+            <MenuItem onClick={onDismiss}>Retirer de la liste</MenuItem>
+          </MenuPopup>
+        </Menu.Root>
+      </div>
+    </div>
+  );
+}
+
+function MenuPopup({ children }: { children: React.ReactNode }) {
+  return (
+    <Menu.Portal>
+      <Menu.Positioner side="bottom" align="end" sideOffset={4}>
+        <Menu.Popup className="elev-lg flex min-w-[196px] flex-col rounded-md bg-neutral-100 p-1 outline-none">
+          {children}
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
+  );
+}
+
+function MenuItem({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <Menu.Item
+      onClick={onClick}
+      className="cursor-pointer rounded-sm px-[9px] py-[6px] text-left font-body text-[12.5px] text-ink outline-none hover:bg-ink/8 data-highlighted:bg-ink/8"
+    >
+      {children}
+    </Menu.Item>
+  );
+}
+
+/* ------------------------------------------------------------------ panes -- */
+
+function Files({
+  items,
+  origin,
+  onRename,
+  onDismiss,
+}: {
+  items: readonly Item[];
+  origin: string;
+  onRename: (url: string, name: string) => void;
+  onDismiss: (url: string) => void;
+}) {
+  const groups = new Map<number | null, Item[]>();
+  for (const item of items) {
+    const group = groups.get(item.episode) ?? [];
+    group.push(item);
+    groups.set(item.episode, group);
+  }
+  // Newest first. Every group starts open, so the state only ever holds the
+  // ones the reader has deliberately folded away.
+  const episodes = [...groups.keys()].sort((a, b) => (b ?? -Infinity) - (a ?? -Infinity));
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="max-h-[440px] overflow-auto pt-[6px] pb-[10px]">
+      {episodes.map((episode) => {
+        const key = String(episode);
+        const files = groups.get(episode) ?? [];
+        const open = !closed.has(key);
+
+        return (
+          <Collapsible.Root
+            key={key}
+            open={open}
+            onOpenChange={(next) =>
+              setClosed((prev) => {
+                const folded = new Set(prev);
+                if (next) folded.delete(key);
+                else folded.add(key);
+                return folded;
+              })
+            }
+            className="pt-[6px]"
+          >
+            <Collapsible.Trigger className="flex w-full cursor-pointer items-center gap-[7px] px-[14px] py-[6px] text-left font-heading text-[12px] tracking-[0.07em] text-ink uppercase hover:bg-ink/6">
+              {open ? <ChevronDown /> : <ChevronRight />}
+              <span>{episodeLabel(episode)}</span>
+              <span className="font-body text-[11.5px] tracking-normal text-neutral-700 normal-case">
+                {files.length} {files.length > 1 ? 'fichiers' : 'fichier'}
+              </span>
+            </Collapsible.Trigger>
+
+            <Collapsible.Panel className="flex flex-col">
+              {files.map((item) => (
+                <Row
+                  key={item.url}
+                  item={item}
+                  origin={origin}
+                  onRename={(name) => onRename(item.url, name)}
+                  onDismiss={() => onDismiss(item.url)}
+                />
+              ))}
+            </Collapsible.Panel>
+          </Collapsible.Root>
+        );
+      })}
+    </div>
+  );
 }
 
 function Note({
@@ -431,207 +689,106 @@ function Note({
   const text = buildNote(title, meta, items);
   const [copied, setCopied] = useState(false);
 
-  // Self-clearing, so nothing has to be torn down by hand.
   useEffect(() => {
     if (!copied) return;
-    const id = setTimeout(() => setCopied(false), 1600);
+    const id = setTimeout(() => setCopied(false), 2200);
     return () => clearTimeout(id);
   }, [copied]);
 
   return (
-    <div className="pane">
-      <div className="fields">
-        <label className="field">
-          <span>Name</span>
-          <InputText
-            className="p-inputtext-sm"
-            value={meta.name ?? ''}
-            placeholder={title}
-            onChange={(e) => onChange({ name: e.target.value })}
-          />
+    <div className="flex flex-col gap-[10px] p-[14px]">
+      <div>
+        <label htmlFor="release" className="mb-1 block">
+          <Kicker>Nom de release</Kicker>
         </label>
-      </div>
-
-      {/* Copy sits above the listing: the listing grows with the episode
-          count, and a button under it would scroll out of reach. */}
-      <div className="note-head">
-        <span>Preview</span>
-        <Button
-          label={copied ? 'Copied' : 'Copy'}
-          icon={copied ? 'pi pi-check' : 'pi pi-copy'}
-          size="small"
-          text
-          onClick={async () => setCopied(await copy(text))}
+        <input
+          id="release"
+          className="input min-h-[30px] text-[12.5px]"
+          value={meta.name ?? ''}
+          placeholder={title}
+          onChange={(e) => onChange({ name: e.target.value })}
         />
       </div>
 
-      <pre className="note">{text}</pre>
+      <div>
+        <div className="mb-1">
+          <Kicker>
+            Listing · {items.length} URL
+          </Kicker>
+        </div>
+        <pre className="m-0 max-h-[200px] overflow-auto rounded-md bg-surface px-[10px] py-[9px] font-mono text-[10.5px] leading-[1.7] whitespace-pre text-neutral-800">
+          {text}
+        </pre>
+      </div>
+
+      <button
+        type="button"
+        className="btn btn-primary btn-block"
+        onClick={async () => setCopied(await copy(text))}
+      >
+        {copied ? 'Bloc copié' : 'Copier le bloc'}
+      </button>
     </div>
-  );
-}
-
-function Row({
-  item,
-  origin,
-  strip,
-  onRename,
-  onDismiss,
-}: {
-  item: Item;
-  origin: string;
-  /** Drama title, already in the header and so redundant on every row. */
-  strip: string;
-  onRename: (name: string) => void;
-  onDismiss: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(item.name);
-  /** Confirms an action in place of the file line; no overlay, no toast. */
-  const [flash, setFlash] = useState<string | null>(null);
-  const menu = useRef<Menu>(null);
-
-  // Self-clearing, so nothing has to be torn down by hand.
-  useEffect(() => {
-    if (!flash) return;
-    const id = setTimeout(() => setFlash(null), 1600);
-    return () => clearTimeout(id);
-  }, [flash]);
-
-  const commit = () => {
-    setEditing(false);
-    const next = draft.trim();
-    if (next && next !== item.name) onRename(next);
-    else setDraft(item.name);
-  };
-
-  const copyAs = async (what: string, text: string) =>
-    setFlash((await copy(text)) ? `${what} copied` : 'Copy failed');
-
-  const sub = isSubtitle(item.kind);
-  // Only a playlist needs muxing; anything else is fetched as it stands.
-  const direct = item.kind !== 'M3U8' && item.kind !== 'MPD';
-
-  const save = async () => {
-    if (!direct) return copyAs('ffmpeg command', ffmpegCommand(item, origin));
-    try {
-      await browser.downloads.download({ url: item.url, filename: safeName(item.name) });
-      setFlash('Download started');
-    } catch (err) {
-      setFlash(err instanceof Error ? err.message : 'Download failed');
-    }
-  };
-
-  const menuItems = [
-    { label: 'Rename', icon: 'pi pi-pencil', command: () => { setDraft(item.name); setEditing(true); } },
-    { label: 'Copy URL', icon: 'pi pi-link', command: () => void copyAs('URL', item.url) },
-    ...(sub
-      ? []
-      : [
-          { label: 'Copy ffmpeg', icon: 'pi pi-code', command: () => void copyAs('ffmpeg command', ffmpegCommand(item, origin)) },
-          { label: 'Copy yt-dlp', icon: 'pi pi-code', command: () => void copyAs('yt-dlp command', ytDlpCommand(item, origin)) },
-        ]),
-    { separator: true },
-    { label: 'Remove', icon: 'pi pi-trash', command: onDismiss },
-  ];
-
-  const episode = item.episode === null ? 'Unknown episode' : `Episode ${item.episode}`;
-  const headline = sub ? `${episode} · ${item.label ?? 'Subtitle'}` : episode;
-
-  return (
-    <li className={`row${sub ? ' row-sub' : ''}`}>
-      <span className={`tile tile-${item.kind.toLowerCase()}`}>{KIND_TILE[item.kind]}</span>
-
-      <div className="row-text">
-        {editing ? (
-          <InputText
-            className="row-rename p-inputtext-sm"
-            value={draft}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit();
-              if (e.key === 'Escape') {
-                setDraft(item.name);
-                setEditing(false);
-              }
-            }}
-          />
-        ) : (
-          <>
-            <div className="row-head">
-              <span className="row-title">{headline}</span>
-              {item.duration !== null && (
-                <span className="row-time">{formatDuration(item.duration)}</span>
-              )}
-            </div>
-            <div className={`row-file${flash ? ' row-flash' : ''}`} title={item.name}>
-              {flash ?? tail(item, strip)}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="row-acts">
-        <Button
-          className="act act-save"
-          icon={direct ? 'pi pi-download' : 'pi pi-copy'}
-          rounded
-          text
-          aria-label={direct ? 'Download' : 'Copy ffmpeg command'}
-          title={direct ? 'Download' : 'Playlist: copy an ffmpeg command'}
-          onClick={() => void save()}
-        />
-        <Button
-          className="act"
-          icon="pi pi-ellipsis-v"
-          rounded
-          text
-          severity="secondary"
-          aria-label="More"
-          onClick={(event) => menu.current?.toggle(event)}
-        />
-        <Menu model={menuItems} popup ref={menu} />
-      </div>
-    </li>
   );
 }
 
 function Settings({
   chosen,
+  counts,
   onToggle,
 }: {
   chosen: string[];
+  counts: Record<string, number>;
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="pane">
-      <h2 className="pane-title">Subtitle languages</h2>
-      <div className="langs">
-        {LANGUAGES.map((lang) => (
-          <label key={lang.id} className="lang" htmlFor={`lang-${lang.id}`}>
-            <Checkbox
-              inputId={`lang-${lang.id}`}
-              checked={chosen.includes(lang.id)}
-              onChange={() => onToggle(lang.id)}
-            />
-            <span>{lang.label}</span>
-          </label>
-        ))}
+    <div className="flex flex-col gap-2 p-[14px]">
+      <div>
+        <Kicker>Langues de sous-titres</Kicker>
+        <div className="mt-[3px] text-[11.5px] text-neutral-700">
+          Les autres langues sont captées mais masquées.
+        </div>
       </div>
-      <p className="hint">
-        Applies to tracks already captured, not only the next ones. A track the
-        page gives no language to is always kept.
-      </p>
+
+      <div className="flex flex-col">
+        {LANGUAGES.map((lang) => {
+          const on = chosen.includes(lang.id);
+          const count = counts[lang.id] ?? 0;
+          return (
+            <label
+              key={lang.id}
+              className="flex cursor-pointer items-center gap-[9px] px-1 py-[7px] text-[13px] hover:bg-ink/6"
+            >
+              <Checkbox.Root
+                checked={on}
+                onCheckedChange={() => onToggle(lang.id)}
+                className={`inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-paper ${
+                  on ? 'bg-accent' : 'bg-surface shadow-[inset_0_0_0_1px_var(--color-neutral-400)]'
+                }`}
+              >
+                <Checkbox.Indicator>
+                  <Check />
+                </Checkbox.Indicator>
+              </Checkbox.Root>
+              <span>{lang.label}</span>
+              <span className="ml-auto text-[11px] text-neutral-700">
+                {count > 0 && `${count} ${count > 1 ? 'fichiers' : 'fichier'}`}
+              </span>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
+/* -------------------------------------------------------------------- app -- */
+
 function App() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [chosen, setChosen] = useState<string[]>([...DEFAULT_LANGS]);
-  const [view, setView] = useState<'files' | 'note' | 'settings'>('files');
   const [meta, setMeta] = useState<DramaMeta>({});
+  const [view, setView] = useState('files');
   const [busy, setBusy] = useState(false);
   const durationsFor = useRef<string>('');
   const probed = useRef<Set<string>>(new Set());
@@ -673,9 +830,7 @@ function App() {
               ? prev
               : {
                   ...prev,
-                  items: prev.items.map((i) =>
-                    i.url === item.url ? { ...i, duration } : i,
-                  ),
+                  items: prev.items.map((i) => (i.url === item.url ? { ...i, duration } : i)),
                 },
           );
         })
@@ -737,15 +892,13 @@ function App() {
     if (dramaId === undefined) return;
     const stored = await browser.storage.local.get(META_KEY);
     const all = (stored[META_KEY] as Record<string, DramaMeta> | undefined) ?? {};
-    await browser.storage.local.set({
-      [META_KEY]: { ...all, [String(dramaId)]: next },
-    });
+    await browser.storage.local.set({ [META_KEY]: { ...all, [String(dramaId)]: next } });
   };
 
   /**
-   * Removals apply on the spot. The background is the owner of the list, but
-   * waiting for the round trip and reloading everything meant dropping one
-   * row re-fetched the drama and blanked the popup. On failure we resync.
+   * Removals apply on the spot. The background owns the list, but waiting for
+   * the round trip and reloading everything meant dropping one row blanked the
+   * popup and re-fetched the drama. On failure we resync.
    */
   const drop = (keep: (item: Item) => boolean, message: object) => {
     if (state.status !== 'ready') return;
@@ -781,127 +934,142 @@ function App() {
   const ready = state.status === 'ready' ? state : null;
   const items = ready?.items ?? [];
   const counts = ready?.drama ? countEpisodes(ready.drama) : null;
+  const title = ready?.drama?.title ?? meta.name ?? 'kisskh';
 
-  const subtitle = ready
-    ? [
-        items.length ? `${items.length} file${items.length > 1 ? 's' : ''}` : 'nothing captured',
-        counts ? `${counts.total} episodes` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : state.status === 'loading'
-      ? 'Reading the page...'
-      : '';
+  const episodeCount = new Set(items.map((i) => i.episode)).size;
+  const langCounts: Record<string, number> = {};
+  for (const item of items) {
+    if (!isSubtitle(item.kind) || !item.label) continue;
+    const lang = LANGUAGES.find((l) => l.code.test(item.label ?? ''));
+    if (lang) langCounts[lang.id] = (langCounts[lang.id] ?? 0) + 1;
+  }
+
+  const status =
+    state.status === 'loading' ? 'Détection…' : items.length ? 'Capture active' : 'En attente';
 
   return (
-    <div className="app">
-      <header className="top">
-        <div className="top-text">
-          <h1>{ready?.drama?.title ?? 'KissKH'}</h1>
-          <p>{subtitle}</p>
+    <div>
+      <div className="px-[14px] pt-[14px]">
+        <div className="flex items-center gap-2">
+          <Kicker>kisskh grab</Kicker>
+          <span className="ml-auto inline-flex items-center gap-[5px] text-[11px] text-accent-700">
+            {items.length > 0 && (
+              <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                <circle cx="4" cy="4" r="4" fill="currentColor" opacity="0.25" />
+                <circle cx="4" cy="4" r="2" fill="currentColor" />
+              </svg>
+            )}
+            {status}
+          </span>
         </div>
-        <Button
-          className="act"
-          icon={busy ? 'pi pi-spin pi-spinner' : 'pi pi-refresh'}
-          rounded
-          text
-          severity="secondary"
-          aria-label="Refresh"
-          disabled={busy}
-          onClick={refresh}
-        />
-      </header>
 
-      <nav className="seg">
-        <button
-          className={view === 'files' ? 'on' : ''}
-          onClick={() => setView('files')}
-        >
-          Files
-          {items.length > 0 && <span className="pill">{items.length}</span>}
-        </button>
-        <button
-          className={view === 'note' ? 'on' : ''}
-          onClick={() => setView('note')}
-        >
-          Note
-        </button>
-        <button
-          className={view === 'settings' ? 'on' : ''}
-          onClick={() => setView('settings')}
-        >
-          Settings
-        </button>
-      </nav>
-
-      {view === 'settings' ? (
-        <Settings chosen={chosen} onToggle={(id) => void toggleLang(id)} />
-      ) : view === 'note' ? (
-        <Note
-          title={ready?.drama?.title ?? ''}
-          meta={meta}
-          items={items}
-          onChange={(patch) => void saveMeta(patch)}
-        />
-      ) : (
-        <div className="pane">
-          {state.status === 'loading' && (
-            <p className="empty">
-              <i className="pi pi-spin pi-spinner" />
+        {state.status === 'loading' ? (
+          <div className="mt-4 flex flex-col gap-[9px]">
+            <div className="h-[15px] w-[58%] rounded-sm bg-neutral-300" />
+            <div className="h-[10px] w-[34%] rounded-sm bg-neutral-200" />
+            <div className="mt-2 h-[10px] w-[76%] rounded-sm bg-neutral-200" />
+            <div className="h-[10px] w-[64%] rounded-sm bg-neutral-200" />
+          </div>
+        ) : state.status === 'idle' ? (
+          <div className="pb-[14px]">
+            <h3 className="mt-4 mb-1 text-[18px]">Rien à capter ici</h3>
+            <p className="mb-[14px] max-w-[300px] text-[12.5px] text-neutral-700">
+              {state.message}
             </p>
-          )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void browser.tabs.create({ url: 'https://kisskh.co' })}
+            >
+              Ouvrir kisskh.co
+            </button>
+          </div>
+        ) : (
+          <>
+            {ready?.dramaError && (
+              <div className="mt-[14px]">
+                <div className="text-[12.5px] font-semibold text-flag-700">
+                  Titre introuvable sur la page
+                </div>
+                <div className="mt-[2px] text-[12px] text-neutral-700">
+                  Les fichiers gardent leur nom brut. Donne un nom de release dans
+                  l'onglet Note pour les renommer.
+                </div>
+              </div>
+            )}
 
-          {state.status === 'idle' && <p className="empty">{state.message}</p>}
+            <h2 className="mt-[11px] mb-[2px] text-[21px]">{title}</h2>
+            <div className="text-[11.5px] text-neutral-700">
+              {episodeCount > 0 && `${episodeCount} ${episodeCount > 1 ? 'épisodes' : 'épisode'} · `}
+              {items.length} {items.length > 1 ? 'fichiers captés' : 'fichier capté'}
+              {counts ? ` · ${counts.total} au catalogue` : ''}
+            </div>
+          </>
+        )}
+      </div>
 
-          {ready?.dramaError && (
-            <Message
-              className="notice"
-              severity="warn"
-              text={`No title or episode number: ${ready.dramaError}`}
+      {ready && (
+        <Tabs.Root value={view} onValueChange={(next) => setView(String(next))}>
+          <Tabs.List className="mt-3 flex gap-[18px] px-[14px]">
+            {[
+              ['files', 'Fichiers'],
+              ['note', 'Note'],
+              ['settings', 'Réglages'],
+            ].map(([id, label]) => (
+              <Tabs.Tab
+                key={id}
+                value={id}
+                className={`cursor-pointer border-0 bg-transparent pb-[7px] font-heading text-[12px] tracking-[0.06em] uppercase ${
+                  view === id
+                    ? 'text-ink shadow-[inset_0_-2px_0_var(--color-accent)]'
+                    : 'text-neutral-700'
+                }`}
+              >
+                {label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+
+          <Tabs.Panel value="files">
+            {items.length > 0 ? (
+              <Files
+                items={items}
+                origin={ready.origin}
+                onRename={(url, name) => void rename(url, name)}
+                onDismiss={(url) =>
+                  drop((other) => other.url !== url, { type: 'kisskh-dismiss', url })
+                }
+              />
+            ) : (
+              <div className="p-[14px]">
+                <p className="mb-[14px] max-w-[320px] text-[12.5px] text-neutral-700">
+                  Aucun fichier n'est encore passé. Lance la lecture quelques secondes :
+                  la vidéo et les sous-titres apparaîtront ici.
+                </p>
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={refresh}>
+                  {busy ? 'Détection…' : 'Relancer la détection'}
+                </button>
+              </div>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="note">
+            <Note
+              title={ready.drama?.title ?? ''}
+              meta={meta}
+              items={items}
+              onChange={(patch) => void saveMeta(patch)}
             />
-          )}
+          </Tabs.Panel>
 
-          {ready && items.length > 0 && (
-            <ul className="rows">
-              {items.map((item) => (
-                <Row
-                  key={item.url}
-                  item={item}
-                  origin={ready.origin}
-                  strip={ready.drama?.title ?? ''}
-                          onRename={(name) => void rename(item.url, name)}
-                  onDismiss={() =>
-                    drop((other) => other.url !== item.url, {
-                      type: 'kisskh-dismiss',
-                      url: item.url,
-                    })
-                  }
-                />
-              ))}
-            </ul>
-          )}
-
-          {ready && items.length === 0 && (
-            <p className="empty">
-              <strong>Nothing captured yet</strong>
-              <span>Start playing the episode, then refresh.</span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {ready && items.length > 0 && view === 'files' && (
-        <footer className="bottom">
-          <button className="link" onClick={() => void browser.tabs.create({ url: 'chrome://downloads' })}>
-            <i className="pi pi-folder-open" /> Downloads
-          </button>
-          <button
-            className="link danger"
-            onClick={() => drop(() => false, { type: 'kisskh-clear' })}
-          >
-            <i className="pi pi-trash" /> Clear list
-          </button>
-        </footer>
+          <Tabs.Panel value="settings">
+            <Settings
+              chosen={chosen}
+              counts={langCounts}
+              onToggle={(id) => void toggleLang(id)}
+            />
+          </Tabs.Panel>
+        </Tabs.Root>
       )}
     </div>
   );

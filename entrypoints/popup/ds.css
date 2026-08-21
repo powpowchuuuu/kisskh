@@ -1,0 +1,232 @@
+/*
+ * Broadsheet — the project's design system, vendored rather than linked: the
+ * popup's CSP blocks remote stylesheets, and the typeface is bundled for the
+ * same reason. Tokens live in style.css's @theme, so Tailwind utilities
+ * resolve to the system instead of sitting alongside it.
+ *
+ * Trimmed to what a 400px popup uses: the print treatments and the
+ * nav/table/dialog components stay in the source system.
+ */
+
+/*
+ * The values Tailwind's @theme cannot own: it only registers its own
+ * namespaces (color, font, radius, shadow), so the spacing step, the heading
+ * weight and the divider live here. `--color-text` and `--color-bg` keep the
+ * design system's own names for the component classes below.
+ */
+:root {
+  --color-text: var(--color-ink);
+  --color-bg: var(--color-paper);
+  --color-accent-2: var(--color-flag);
+  --color-accent-2-100: var(--color-flag-100);
+  --color-accent-2-800: #790e3d;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  --font-heading-weight: 600;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 15px;
+  --space-4: 20px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.text-muted {
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+/* — buttons — */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: var(--font-heading-weight);
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.btn svg {
+  display: block;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-600);
+}
+
+.btn-primary:active {
+  background: var(--color-accent-700);
+}
+
+.btn-secondary {
+  border-color: var(--color-divider);
+}
+
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+
+.btn-secondary:active {
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+}
+
+.btn-ghost {
+  padding-inline: var(--space-1);
+  color: var(--color-accent);
+}
+
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.btn-ghost:active {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.btn-block {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+/* — forms — */
+
+.input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  caret-color: var(--color-accent);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  opacity: 1;
+}
+
+.input:hover {
+  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.input:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 0;
+}
+
+/* — tags — */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.tag-accent {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+
+.tag-accent-2 {
+  background: var(--color-accent-2-100);
+  color: var(--color-accent-2-800);
+}
+
+.tag-neutral {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
+}
+
+/* — elevation — */
+
+.elev-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.elev-md {
+  box-shadow: var(--shadow-md);
+}
+
+.elev-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+/* The action confirmation that replaces a toast, from the canvas. */
+@keyframes fbIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
