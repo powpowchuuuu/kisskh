@@ -240,12 +240,24 @@ export default defineBackground(() => {
         void enqueue((data) => {
           const state = stateOf(data, tabId);
           const next = ep ?? null;
-          if (state.ep === next) return false;
-          // Captures made before we knew the episode belong to the one we have
-          // just been told about. Everything already tagged keeps its own.
-          for (const item of state.items) item.ep ??= next;
+          let changed = state.ep !== next;
+
+          // Adopt whatever landed before the tab told us which episode it was
+          // on -- and do it even when the scope has not moved. A playlist is
+          // requested the moment the player mounts, often before the content
+          // script runs, so on a reload the scope repeats and an early capture
+          // would keep a null episode for good. Anything already tagged keeps
+          // its own.
+          if (next !== null) {
+            for (const item of state.items) {
+              if (item.ep !== null) continue;
+              item.ep = next;
+              changed = true;
+            }
+          }
+
           state.ep = next;
-          return true;
+          return changed;
         }).then(answer);
         return true;
 
